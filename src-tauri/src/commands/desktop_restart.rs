@@ -47,7 +47,23 @@ impl DesktopApp {
     fn windows_images(self) -> &'static [&'static str] {
         match self {
             Self::Claude => &["claude.exe", "Claude.exe"],
-            Self::Codex => &["Codex.exe", "codex-plus-plus.exe", "codex-app.exe"],
+            Self::Codex => &[
+                "Codex.exe",
+                "codex.exe",
+                "codex-plus-plus.exe",
+                "codex-app.exe",
+            ],
+        }
+    }
+
+    /// MSIX（微软商店）包名候选。装在 `C:\Program Files\WindowsApps` 下的应用
+    /// ACL 属于 TrustedInstaller，直接 exec 原始 exe 会 os error 5，
+    /// 必须走 AUMID 让应用激活管理器拉起，应用才拿得到包标识。
+    #[cfg(target_os = "windows")]
+    fn msix_package_names(self) -> &'static [&'static str] {
+        match self {
+            Self::Claude => &["Claude", "Anthropic.Claude", "AnthropicClaude"],
+            Self::Codex => &["OpenAI.Codex", "OpenAI.CodexApp"],
         }
     }
 }
@@ -97,6 +113,17 @@ fn restart(app: DesktopApp) -> Result<RestartDesktopAppResult, String> {
         None => None,
     };
 
+    // MSIX 优先：AUMID 拉起才拿得到包标识，且不受 WindowsApps 目录 ACL 限制。
+    // 非商店安装的应用查不到包，自然回落到 exe 路径。
+    if let Some(aumid) = windows_aumid(app) {
+        launch_via_aumid(&aumid)?;
+        return Ok(RestartDesktopAppResult {
+            was_running,
+            launched: true,
+            path: Some(aumid),
+        });
+    }
+
     let exe = running_path
         .or_else(|| {
             windows_fallback_paths(app)
@@ -115,13 +142,68 @@ fn restart(app: DesktopApp) -> Result<RestartDesktopAppResult, String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("启动 {} 失败: {e}", exe.display()))?;
+        .map_err(|e| {
+            format!(
+                "启动 {} 失败: {e}（若为商店版应用，请确认包未被系统策略阻止）",
+                exe.display()
+            )
+        })?;
 
     Ok(RestartDesktopAppResult {
         was_running,
         launched: true,
         path: Some(exe.to_string_lossy().to_string()),
     })
+}
+
+/// 查 MSIX 包的 AUMID，形如 `OpenAI.Codex_2p2nqsd0c76g0!App`。
+/// 未安装为商店包时返回 None。
+#[cfg(target_os = "windows")]
+fn windows_aumid(app: DesktopApp) -> Option<String> {
+    for name in app.msix_package_names() {
+        let script = format!(
+            "$p = Get-AppxPackage -Name '{name}' | Select-Object -First 1; \
+             if ($p) {{ \
+               $id = (Get-AppxPackageManifest $p).Package.Applications.Application \
+                     | Select-Object -First 1 -ExpandProperty Id; \
+               if ($id) {{ \"$($p.PackageFamilyName)!$id\" }} \
+             }}"
+        );
+        let output = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &script,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .ok();
+
+        if let Some(output) = output {
+            let aumid = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if aumid.contains('!') {
+                return Some(aumid);
+            }
+        }
+    }
+    None
+}
+
+/// 通过 `shell:AppsFolder` 激活 MSIX 应用。explorer 只负责转交激活请求，
+/// 立即返回，因此拿不到目标进程的退出码 —— 用轮询确认是否真的起来了。
+#[cfg(target_os = "windows")]
+fn launch_via_aumid(aumid: &str) -> Result<(), String> {
+    Command::new("explorer.exe")
+        .arg(format!("shell:AppsFolder\\{aumid}"))
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("激活 {aumid} 失败: {e}"))?;
+    Ok(())
 }
 
 /// 用 PowerShell 取运行中进程的可执行路径。用它而不是写死安装目录，
