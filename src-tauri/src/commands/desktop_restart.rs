@@ -8,6 +8,8 @@ use serde::Serialize;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
+#[cfg(target_os = "windows")]
+use std::time::Instant;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -17,6 +19,14 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// 结束进程后等待其退出的时间，避免新实例撞上旧实例的单例锁
 const KILL_SETTLE: Duration = Duration::from_millis(900);
+
+/// 等待进程真正消失的上限。超时说明杀不掉，此时直接报错，
+/// 不能继续启动 —— 否则只是把还活着的窗口重新激活，看起来像"没重启"。
+#[cfg(target_os = "windows")]
+const KILL_TIMEOUT: Duration = Duration::from_secs(8);
+
+#[cfg(target_os = "windows")]
+const KILL_POLL: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DesktopApp {
@@ -43,16 +53,32 @@ impl DesktopApp {
 
     /// Windows 进程名候选，按优先级排列。
     /// 官方包与第三方 GUI（如 Codex++）的 exe 名不同，逐个探测才不会漏。
+    /// 注意顺序：必须是「应用主进程」优先。
+    /// Codex 商店版的主进程其实叫 ChatGPT.exe，`resources\codex.exe` 只是它拉起的
+    /// CLI 后端 —— 只杀后端会让应用停在「ChatGPT 意外停止」而不是退出。
     #[cfg(target_os = "windows")]
     fn windows_images(self) -> &'static [&'static str] {
         match self {
-            Self::Claude => &["claude.exe", "Claude.exe"],
+            Self::Claude => &["Claude.exe", "claude.exe"],
             Self::Codex => &[
+                "ChatGPT.exe",
                 "Codex.exe",
-                "codex.exe",
                 "codex-plus-plus.exe",
                 "codex-app.exe",
+                "codex.exe",
             ],
+        }
+    }
+
+    /// 判断某个 exe 路径是否属于这个桌面应用。
+    /// Claude Code CLI 的 exe 也叫 claude.exe（在 `AppData\Local\Claude-3p\claude-code\`
+    /// 下），仅按进程名匹配会把用户正在跑的 CLI 一起杀掉，必须排除。
+    #[cfg(target_os = "windows")]
+    fn path_belongs_to_app(self, path: &std::path::Path) -> bool {
+        let lower = path.to_string_lossy().to_lowercase();
+        match self {
+            Self::Claude => !lower.contains("claude-code") && !lower.contains("claude-3p"),
+            Self::Codex => true,
         }
     }
 
@@ -92,26 +118,48 @@ pub async fn restart_desktop_app(target: String) -> Result<RestartDesktopAppResu
 
 #[cfg(target_os = "windows")]
 fn restart(app: DesktopApp) -> Result<RestartDesktopAppResult, String> {
-    // 逐个候选进程名找出正在跑的那个，顺带拿到它的真实 exe 路径
-    let running = app
+    // 先定位主进程，拿到它所在的安装根目录
+    let main_path = app
         .windows_images()
         .iter()
-        .find_map(|image| windows_running_path(image).map(|path| (*image, path)));
-    let was_running = running.is_some();
+        .find_map(|image| windows_running_path(app, image));
+    let install_root = main_path.as_deref().and_then(windows_install_root);
+    let was_running = main_path.is_some();
 
-    let running_path = match running {
-        Some((image, path)) => {
-            let _ = Command::new("taskkill")
-                .args(["/IM", image, "/T", "/F"])
-                .creation_flags(CREATE_NO_WINDOW)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+    // 按安装目录（而不是进程名）枚举出该应用的全部进程，一次性杀干净。
+    // Electron / Tauri 应用有渲染进程、GPU 进程、辅助服务（如 cowork-svc.exe），
+    // 只杀主进程会留下孤儿进程，下次激活就会撞上残留状态。
+    if let Some(root) = install_root.as_deref() {
+        let pids = windows_pids_under(root, app);
+        if !pids.is_empty() {
+            windows_kill_pids(&pids);
+            // 确认真的退出了再启动，否则 AUMID 激活只会把还活着的窗口拉到前台，
+            // 用户看到的就是「没重启」。
+            let deadline = Instant::now() + KILL_TIMEOUT;
+            loop {
+                let alive = windows_pids_under(root, app);
+                if alive.is_empty() {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    return Err(format!(
+                        "无法结束 {} 的进程（残留 PID: {}），可能被系统策略保护，请手动退出后重试",
+                        app.mac_app_name(),
+                        alive
+                            .iter()
+                            .map(|p| p.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                std::thread::sleep(KILL_POLL);
+            }
+            // 商店应用退出后系统还要回收包容器，给一点缓冲再激活
             std::thread::sleep(KILL_SETTLE);
-            Some(path)
         }
-        None => None,
-    };
+    }
+
+    let running_path = main_path;
 
     // MSIX 优先：AUMID 拉起才拿得到包标识，且不受 WindowsApps 目录 ACL 限制。
     // 非商店安装的应用查不到包，自然回落到 exe 路径。
@@ -206,14 +254,86 @@ fn launch_via_aumid(aumid: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 推断安装根目录。MSIX 应用的进程散落在 `<包目录>\app\` 和
+/// `<包目录>\app\resources\` 下，取到包目录才能把它们全部覆盖。
+#[cfg(target_os = "windows")]
+fn windows_install_root(exe: &std::path::Path) -> Option<PathBuf> {
+    let lower = exe.to_string_lossy().to_lowercase();
+    if let Some(idx) = lower.find("\\windowsapps\\") {
+        // 截到 WindowsApps 下的第一层包目录
+        let after = idx + "\\windowsapps\\".len();
+        let rest = &lower[after..];
+        let pkg_len = rest.find('\\').unwrap_or(rest.len());
+        let full = exe.to_string_lossy();
+        return Some(PathBuf::from(&full[..after + pkg_len]));
+    }
+    exe.parent().map(|p| p.to_path_buf())
+}
+
+/// 枚举安装目录下所有属于该应用的进程 PID。
+#[cfg(target_os = "windows")]
+fn windows_pids_under(root: &std::path::Path, app: DesktopApp) -> Vec<u32> {
+    let root_str = root.to_string_lossy().replace('\'', "''");
+    let script = format!(
+        "Get-Process -ErrorAction SilentlyContinue | Where-Object {{ \
+           $_.Path -and $_.Path.StartsWith('{root_str}', \
+           [System.StringComparison]::OrdinalIgnoreCase) }} | \
+         ForEach-Object {{ \"$($_.Id)|$($_.Path)\" }}"
+    );
+    let Some(output) = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &script,
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()
+    else {
+        return Vec::new();
+    };
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let (pid, path) = line.trim().split_once('|')?;
+            let path = PathBuf::from(path);
+            app.path_belongs_to_app(&path)
+                .then(|| pid.parse::<u32>().ok())
+                .flatten()
+        })
+        .collect()
+}
+
+/// 按 PID 结束进程（带子进程树）。用 PID 而非进程名，避免误杀同名的其它程序。
+#[cfg(target_os = "windows")]
+fn windows_kill_pids(pids: &[u32]) {
+    let mut args: Vec<String> = Vec::with_capacity(pids.len() * 2 + 2);
+    for pid in pids {
+        args.push("/PID".to_string());
+        args.push(pid.to_string());
+    }
+    args.push("/T".to_string());
+    args.push("/F".to_string());
+    let _ = Command::new("taskkill")
+        .args(&args)
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
 /// 用 PowerShell 取运行中进程的可执行路径。用它而不是写死安装目录，
 /// 是因为 Claude Desktop 会把真正的 exe 放进带版本号的 `app-x.y.z` 子目录。
 #[cfg(target_os = "windows")]
-fn windows_running_path(image: &str) -> Option<PathBuf> {
+fn windows_running_path(app: DesktopApp, image: &str) -> Option<PathBuf> {
     let name = image.trim_end_matches(".exe");
     let script = format!(
-        "(Get-Process -Name '{name}' -ErrorAction SilentlyContinue | \
-         Where-Object {{ $_.Path }} | Select-Object -First 1).Path"
+        "Get-Process -Name '{name}' -ErrorAction SilentlyContinue | \
+         Where-Object {{ $_.Path }} | ForEach-Object {{ $_.Path }}"
     );
     let output = Command::new("powershell")
         .args([
@@ -228,12 +348,10 @@ fn windows_running_path(image: &str) -> Option<PathBuf> {
         .output()
         .ok()?;
 
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if path.is_empty() {
-        return None;
-    }
-    let path = PathBuf::from(path);
-    path.is_file().then_some(path)
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|line| PathBuf::from(line.trim()))
+        .find(|p| !p.as_os_str().is_empty() && app.path_belongs_to_app(p) && p.is_file())
 }
 
 #[cfg(target_os = "windows")]
