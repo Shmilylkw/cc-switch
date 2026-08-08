@@ -408,6 +408,19 @@ impl Database {
         Ok(())
     }
 
+    /// 清除某应用下的"当前供应商"标记（取消使用）
+    ///
+    /// 与 `set_current_provider` 相对：不指向任何条目，使该应用回到"未启用"状态。
+    pub fn clear_current_provider(&self, app_type: &str) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+        conn.execute(
+            "UPDATE providers SET is_current = 0 WHERE app_type = ?1",
+            params![app_type],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
+
     pub fn update_provider_settings_config(
         &self,
         app_type: &str,

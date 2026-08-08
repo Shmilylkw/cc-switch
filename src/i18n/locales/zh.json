@@ -177,7 +177,10 @@
         "apiKeyPlaceholder": "请输入 Gemini API Key"
       }
     },
-    "duplicateLiveIdsLoadFailed": "读取配置中的供应商标识失败，请先修复配置后再试"
+    "duplicateLiveIdsLoadFailed": "读取配置中的供应商标识失败，请先修复配置后再试",
+    "deactivate": "取消使用",
+    "deactivated": "已取消使用",
+    "deactivatedHint": "配置文件保持不变，可随时重新启用"
   },
   "claudeCode": {
     "needsRouting": "需要路由",
@@ -291,7 +294,9 @@
     "windowControlFailed": "窗口控制失败：{{error}}",
     "officialBlockedByProxy": "本地路由模式下不能切换到官方供应商，使用路由访问官方 API 可能导致账号被封禁",
     "proxyOfficialWarning": "当前供应商 {{name}} 是官方供应商，建议切换到第三方供应商后再使用本地路由",
-    "proxyReasonClaudeDesktop": "使用 Claude Desktop 本地路由模式"
+    "proxyReasonClaudeDesktop": "使用 Claude Desktop 本地路由模式",
+    "deactivateFailedTitle": "取消使用失败",
+    "deactivateFailed": "取消使用失败：{{error}}"
   },
   "confirm": {
     "deleteProvider": "删除供应商",
@@ -3245,5 +3250,13 @@
     "expiredHint": "请运行 {{tool}} 命令刷新登录",
     "queryFailed": "查询失败",
     "refresh": "刷新"
+  },
+  "restart": {
+    "claudeDesktop": "Claude 桌面版",
+    "codexDesktop": "Codex 桌面版",
+    "tooltip": "重启 {{app}}（使配置生效）",
+    "done": "{{app}} 已重启",
+    "started": "{{app}} 未在运行，已启动",
+    "failed": "重启 {{app}} 失败：{{error}}"
   }
 }

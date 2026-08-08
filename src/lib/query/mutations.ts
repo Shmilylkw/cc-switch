@@ -384,6 +384,54 @@ export const useSwitchProviderMutation = (appId: AppId) => {
   });
 };
 
+/**
+ * Deactivate the current provider — the inverse of switching.
+ * Live config files stay in place; only the "in use" marker is cleared.
+ */
+export const useDeactivateProviderMutation = (appId: AppId) => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: async (): Promise<SwitchResult> => {
+      return await providersApi.deactivate(appId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["providers", appId] });
+      if (appId === "claude-desktop") {
+        await queryClient.invalidateQueries({ queryKey: proxyKeys.status });
+        await queryClient.invalidateQueries({
+          queryKey: ["claudeDesktopStatus"],
+        });
+      }
+
+      try {
+        await providersApi.updateTrayMenu();
+      } catch (trayError) {
+        console.error(
+          "Failed to update tray menu after deactivating provider",
+          trayError,
+        );
+      }
+    },
+    onError: (error: Error) => {
+      const detail = extractErrorMessage(error) || t("common.unknown");
+      toast.error(
+        t("notifications.deactivateFailedTitle", {
+          defaultValue: "取消使用失败",
+        }),
+        {
+          description: t("notifications.deactivateFailed", {
+            defaultValue: "取消使用失败：{{error}}",
+            error: detail,
+          }),
+          duration: 6000,
+        },
+      );
+    },
+  });
+};
+
 export const useDeleteSessionMutation = () => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();

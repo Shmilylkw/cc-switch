@@ -177,7 +177,10 @@
         "apiKeyPlaceholder": "Gemini API Key を入力"
       }
     },
-    "duplicateLiveIdsLoadFailed": "設定内のプロバイダー識別子を読み込めませんでした。設定を修正してから再度お試しください"
+    "duplicateLiveIdsLoadFailed": "設定内のプロバイダー識別子を読み込めませんでした。設定を修正してから再度お試しください",
+    "deactivate": "使用を解除",
+    "deactivated": "使用を解除しました",
+    "deactivatedHint": "設定ファイルはそのままです。いつでも再度有効化できます"
   },
   "claudeCode": {
     "needsRouting": "ルーティングが必要",
@@ -291,7 +294,9 @@
     "windowControlFailed": "ウィンドウ操作に失敗しました: {{error}}",
     "officialBlockedByProxy": "ローカルルーティングモード中は公式プロバイダーに切り替えできません。ルーティング経由で公式 API にアクセスするとアカウントが停止される可能性があります。",
     "proxyOfficialWarning": "現在のプロバイダー {{name}} は公式です。ローカルルーティングを使用する前にサードパーティプロバイダーに切り替えてください。",
-    "proxyReasonClaudeDesktop": "Claude Desktop ローカルルーティングモードを使用中"
+    "proxyReasonClaudeDesktop": "Claude Desktop ローカルルーティングモードを使用中",
+    "deactivateFailedTitle": "使用解除に失敗しました",
+    "deactivateFailed": "使用解除に失敗しました：{{error}}"
   },
   "confirm": {
     "deleteProvider": "プロバイダーを削除",
@@ -3245,5 +3250,13 @@
     "expiredHint": "{{tool}}コマンドを実行してログインを更新してください",
     "queryFailed": "クエリに失敗しました",
     "refresh": "更新"
+  },
+  "restart": {
+    "claudeDesktop": "Claude デスクトップ版",
+    "codexDesktop": "Codex デスクトップ版",
+    "tooltip": "{{app}} を再起動して設定を反映",
+    "done": "{{app}} を再起動しました",
+    "started": "{{app}} は未起動だったため起動しました",
+    "failed": "{{app}} の再起動に失敗しました：{{error}}"
   }
 }

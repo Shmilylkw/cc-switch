@@ -98,6 +98,23 @@ pub fn remove_provider_from_live_config(
         .map_err(|e| e.to_string())
 }
 
+/// 取消使用当前供应商：回填 live 改动后清除 current 标记，live 文件保持原样
+#[tauri::command]
+pub async fn deactivate_provider(
+    app_handle: tauri::AppHandle,
+    app: String,
+) -> Result<SwitchResult, String> {
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app_handle
+            .try_state::<AppState>()
+            .ok_or_else(|| "应用状态不可用".to_string())?;
+        ProviderService::deactivate(state.inner(), app_type).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("取消使用任务执行失败: {e}"))?
+}
+
 fn switch_provider_internal(
     state: &AppState,
     app_type: AppType,

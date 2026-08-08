@@ -4928,6 +4928,59 @@ impl ProviderService {
         Ok(())
     }
 
+    /// 取消使用当前供应商（独占模式应用：Claude / Codex / Gemini / ...）
+    ///
+    /// 与 `switch` 的差别：不写入任何新的 live 配置，只做"切走"的前半段——
+    /// 先把 live 里的改动回填进当前供应商（否则用户在应用内的改动会丢），
+    /// 再清除 settings 与数据库中的 current 标记。live 配置文件保持原样，
+    /// 因此外部 CLI/桌面端不会因为这个操作而突然失去可用配置，
+    /// 用户随时可以再点"启用"回到原状态。
+    pub fn deactivate(state: &AppState, app_type: AppType) -> Result<SwitchResult, AppError> {
+        if app_type.is_additive_mode() {
+            return Err(AppError::Message(format!(
+                "App {} does not support deactivate",
+                app_type.as_str()
+            )));
+        }
+
+        let mut result = SwitchResult::default();
+
+        let current_id = crate::settings::get_effective_current_provider(&state.db, &app_type)?;
+
+        if let Some(current_id) = current_id {
+            let providers = state.db.get_all_providers(app_type.as_str())?;
+            if let Ok(live_config) = read_live_settings(app_type.clone()) {
+                if let Some(mut current_provider) = providers.get(&current_id).cloned() {
+                    Self::sync_common_config_snippet_from_live(
+                        state,
+                        &app_type,
+                        &current_provider,
+                        &live_config,
+                        &mut result,
+                    );
+
+                    current_provider.settings_config = strip_common_config_from_live_settings(
+                        state.db.as_ref(),
+                        &app_type,
+                        &current_provider,
+                        live_config,
+                    );
+                    if let Err(e) = state.db.save_provider(app_type.as_str(), &current_provider) {
+                        log::warn!("Backfill before deactivate failed: {e}");
+                        result
+                            .warnings
+                            .push(format!("backfill_failed:{current_id}"));
+                    }
+                }
+            }
+        }
+
+        crate::settings::set_current_provider(&app_type, None)?;
+        state.db.clear_current_provider(app_type.as_str())?;
+
+        Ok(result)
+    }
+
     /// Switch to a provider
     ///
     /// Switch flow:
