@@ -180,7 +180,7 @@
     "duplicateLiveIdsLoadFailed": "读取配置中的供应商标识失败，请先修复配置后再试",
     "deactivate": "取消使用",
     "deactivated": "已取消使用",
-    "deactivatedHint": "配置文件保持不变，可随时重新启用"
+    "deactivatedHint": "已清除写入的配置，重启后生效；可随时重新启用"
   },
   "claudeCode": {
     "needsRouting": "需要路由",

@@ -37,10 +37,10 @@ pub fn import_pi_providers_from_live(state: &AppState) -> Result<usize, AppError
 pub(crate) use live::sanitize_claude_settings_for_live;
 pub(crate) use live::{
     build_effective_provider_for_live_with_codex_oauth_manager,
-    build_effective_settings_with_common_config, normalize_provider_common_config_for_storage,
-    provider_exists_in_live_config, strip_common_config_from_live_settings,
-    sync_current_provider_for_app_to_live, write_live_with_common_config_for_codex_oauth_manager,
-    write_live_with_common_config_for_state,
+    build_effective_settings_with_common_config, clear_live_provider_config,
+    normalize_provider_common_config_for_storage, provider_exists_in_live_config,
+    strip_common_config_from_live_settings, sync_current_provider_for_app_to_live,
+    write_live_with_common_config_for_codex_oauth_manager, write_live_with_common_config_for_state,
 };
 
 // Internal re-exports
@@ -4930,10 +4930,16 @@ impl ProviderService {
 
     /// 取消使用当前供应商（独占模式应用：Claude / Codex / Gemini / ...）
     ///
-    /// 与 `switch` 的差别：不写入任何新的 live 配置，只做"切走"的前半段——
-    /// 先把 live 里的改动回填进当前供应商（否则用户在应用内的改动会丢），
-    /// 再清除 settings 与数据库中的 current 标记。live 配置文件保持原样，
-    /// 因此外部 CLI/桌面端不会因为这个操作而突然失去可用配置，
+    /// 与 `switch` 的差别：不指向新的供应商，而是让应用回到"未配置"状态。
+    ///
+    /// 流程：
+    /// 1. 先把 live 里的改动回填进当前供应商（否则用户在应用内的改动会丢）
+    /// 2. 清掉 live 配置里由 CC Switch 注入的供应商部分（鉴权 + 端点），
+    ///    否则重启后应用照旧用上一次的供应商，"取消使用"形同虚设
+    /// 3. 清除 settings 与数据库中的 current 标记
+    ///
+    /// 第 2 步只在回填成功后执行 —— 供应商记录是恢复的唯一依据，
+    /// 回填失败就保留 live 原样，宁可"没取消干净"也不能让配置无法恢复。
     /// 用户随时可以再点"启用"回到原状态。
     pub fn deactivate(state: &AppState, app_type: AppType) -> Result<SwitchResult, AppError> {
         if app_type.is_additive_mode() {
@@ -4946,6 +4952,11 @@ impl ProviderService {
         let mut result = SwitchResult::default();
 
         let current_id = crate::settings::get_effective_current_provider(&state.db, &app_type)?;
+
+        // 没有当前供应商时也要清 live：可能是上一次取消到一半失败，
+        // 或者标记与 live 不一致，此时 live 里残留的配置无处回填，
+        // 保守起来不动它，只把标记清干净。
+        let mut backfill_completed = false;
 
         if let Some(current_id) = current_id {
             let providers = state.db.get_all_providers(app_type.as_str())?;
@@ -4970,8 +4981,22 @@ impl ProviderService {
                         result
                             .warnings
                             .push(format!("backfill_failed:{current_id}"));
+                    } else {
+                        backfill_completed = true;
                     }
                 }
+            }
+        }
+
+        // 回填成功才清 live —— 供应商记录是恢复的唯一依据
+        if backfill_completed {
+            if let Err(e) = clear_live_provider_config(&app_type, state.db.as_ref()) {
+                // 标记还没动，这里失败就整体失败，避免出现
+                // "标记已清但配置还在生效"的不一致状态
+                return Err(AppError::Message(format!(
+                    "清除 {} 的 live 配置失败: {e}",
+                    app_type.as_str()
+                )));
             }
         }
 

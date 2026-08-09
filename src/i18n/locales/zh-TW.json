@@ -180,7 +180,7 @@
     "duplicateLiveIdsLoadFailed": "讀取設定中的供應商識別碼失敗，請先修復設定後再試",
     "deactivate": "取消使用",
     "deactivated": "已取消使用",
-    "deactivatedHint": "設定檔保持不變，可隨時重新啟用"
+    "deactivatedHint": "已清除寫入的設定，重啟後生效；可隨時重新啟用"
   },
   "claudeCode": {
     "needsRouting": "需要路由",

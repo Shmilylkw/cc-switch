@@ -391,8 +391,9 @@ export function ProviderActions({
       </span>
 
       <div className="flex items-center gap-1">
-        {/* 取消使用：仅独占模式的当前供应商可见。live 配置文件保持原样，
-            只清除"使用中"标记，随时可以再点启用回到原状态 */}
+        {/* 取消使用：仅独占模式的当前供应商可见。会先把 live 改动回填进
+            供应商记录，再清掉写入的鉴权/端点配置，让应用回到未配置状态；
+            随时可以再点启用回到原状态 */}
         {isCurrent && onDeactivate && !isOmo && !isAdditiveMode && (
           <Button
             size="icon"

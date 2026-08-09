@@ -180,7 +180,7 @@
     "duplicateLiveIdsLoadFailed": "Failed to read provider identifiers from config, please fix the config and try again",
     "deactivate": "Deactivate",
     "deactivated": "Deactivated",
-    "deactivatedHint": "Config files are unchanged — you can enable it again anytime"
+    "deactivatedHint": "Written config cleared, effective after restart — you can enable it again anytime"
   },
   "claudeCode": {
     "needsRouting": "Needs Routing",

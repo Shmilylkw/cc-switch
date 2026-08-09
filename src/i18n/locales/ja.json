@@ -180,7 +180,7 @@
     "duplicateLiveIdsLoadFailed": "設定内のプロバイダー識別子を読み込めませんでした。設定を修正してから再度お試しください",
     "deactivate": "使用を解除",
     "deactivated": "使用を解除しました",
-    "deactivatedHint": "設定ファイルはそのままです。いつでも再度有効化できます"
+    "deactivatedHint": "書き込まれた設定を削除しました。再起動後に反映されます。いつでも再度有効化できます"
   },
   "claudeCode": {
     "needsRouting": "ルーティングが必要",

@@ -905,6 +905,107 @@ pub(crate) fn codex_managed_oauth_live_auth(
     )
 }
 
+/// Claude Code 里由供应商注入的鉴权/端点 env 键。取消使用时只清这些，
+/// 其余（hooks / permissions / 用户自己加的 env）原样保留。
+const CLAUDE_PROVIDER_ENV_KEYS: [&str; 5] = [
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_CUSTOM_HEADERS",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+];
+
+/// 取消使用：把 live 配置里由 CC Switch 注入的供应商部分清掉，
+/// 让应用回到「未配置」状态（重启后走官方登录），而不是继续用上一次的供应商。
+///
+/// 调用方必须先完成回填 —— 这里删掉的内容都已经存进供应商记录，
+/// 重新点启用可以完整恢复。
+///
+/// 只清鉴权与端点，不整体删除配置文件：settings.json / config.toml 里同时
+/// 存着用户自己的 hooks、permissions、MCP 等设置，删文件会一并丢掉。
+pub(crate) fn clear_live_provider_config(
+    app_type: &AppType,
+    db: &Database,
+) -> Result<(), AppError> {
+    match app_type {
+        AppType::Claude => {
+            let path = get_claude_settings_path();
+            if !path.exists() {
+                return Ok(());
+            }
+            let mut settings: Value = read_json_file(&path)?;
+            if let Some(env) = settings.get_mut("env").and_then(|v| v.as_object_mut()) {
+                for key in CLAUDE_PROVIDER_ENV_KEYS {
+                    env.remove(key);
+                }
+                // env 被清空就整个去掉，避免留下空对象
+                let empty = env.is_empty();
+                if empty {
+                    if let Some(obj) = settings.as_object_mut() {
+                        obj.remove("env");
+                    }
+                }
+            }
+            write_json_file(&path, &settings)?;
+        }
+        AppType::ClaudeDesktop => {
+            // 桌面版有现成的「恢复官方」路径：把 deployment mode 打回 1p、
+            // 删掉 CC Switch 的 profile、清空 _meta 里的 appliedId
+            crate::claude_desktop_config::restore_official(db)?;
+        }
+        AppType::Codex => {
+            // auth.json 是纯鉴权文件，直接删；config.toml 只摘掉
+            // model_provider / model 等由供应商写入的键
+            let auth_path = get_codex_auth_path();
+            if auth_path.exists() {
+                delete_file(&auth_path)?;
+            }
+            let config_path = get_codex_config_path();
+            if config_path.exists() {
+                let text = std::fs::read_to_string(&config_path)
+                    .map_err(|e| AppError::Config(format!("读取 Codex 配置失败: {e}")))?;
+                let cleared = clear_codex_provider_keys(&text)?;
+                crate::codex_config::write_codex_live_config_atomic(Some(&cleared))?;
+            }
+        }
+        AppType::Gemini => {
+            // .env 只承载供应商鉴权，清空即可；settings.json 里有 mcpServers 等
+            // 用户内容，不动
+            crate::gemini_config::write_gemini_env_atomic(&HashMap::new())?;
+        }
+        AppType::GrokBuild => {
+            let path = crate::grok_config::get_grok_config_path();
+            if path.exists() {
+                delete_file(&path)?;
+            }
+        }
+        // 叠加模式的应用没有「当前供应商」概念，走不到这里
+        _ => {}
+    }
+    Ok(())
+}
+
+/// 从 config.toml 摘掉供应商相关的顶层键与 model_providers 表。
+/// 用 toml_edit 而不是重写整个文件，保留用户的注释与其它配置。
+pub(crate) fn clear_codex_provider_keys(text: &str) -> Result<String, AppError> {
+    let mut doc = text
+        .parse::<DocumentMut>()
+        .map_err(|e| AppError::Config(format!("解析 Codex 配置失败: {e}")))?;
+    for key in [
+        "model",
+        "model_provider",
+        "model_reasoning_effort",
+        "model_supports_reasoning_summaries",
+        "model_verbosity",
+        "disable_response_storage",
+        "preferred_auth_method",
+    ] {
+        doc.as_table_mut().remove(key);
+    }
+    doc.as_table_mut().remove("model_providers");
+    Ok(doc.to_string())
+}
+
 pub(crate) fn strip_common_config_from_live_settings(
     db: &Database,
     app_type: &AppType,
@@ -2238,6 +2339,63 @@ mod tests {
     use super::*;
     use crate::provider::{AuthBinding, AuthBindingSource, ProviderMeta};
     use serde_json::json;
+
+    #[test]
+    fn clear_codex_provider_keys_removes_provider_config_keeps_user_content() {
+        let text = r#"
+# 用户自己加的注释
+approval_policy = "on-request"
+model = "gpt-5.6-codex"
+model_provider = "onedollar"
+model_reasoning_effort = "high"
+
+[model_providers.onedollar]
+name = "1yuan"
+base_url = "https://www.mxou.ai/v1"
+wire_api = "responses"
+
+[mcp_servers.fs]
+command = "npx"
+"#;
+        let cleared = clear_codex_provider_keys(text).expect("clear ok");
+
+        // 供应商相关的键与表都摘掉了
+        assert!(!cleared.contains("model_provider"));
+        assert!(!cleared.contains("model_providers"));
+        assert!(!cleared.contains("mxou.ai"));
+        assert!(!cleared.contains("gpt-5.6-codex"));
+        assert!(!cleared.contains("model_reasoning_effort"));
+
+        // 用户自己的内容与注释保留
+        assert!(cleared.contains("# 用户自己加的注释"));
+        assert!(cleared.contains("approval_policy"));
+        assert!(cleared.contains("[mcp_servers.fs]"));
+
+        // 清理后仍是合法 TOML
+        crate::codex_config::validate_config_toml(&cleared).expect("still valid toml");
+    }
+
+    #[test]
+    fn clear_codex_provider_keys_is_idempotent_on_empty_config() {
+        let cleared = clear_codex_provider_keys("").expect("clear ok");
+        assert_eq!(clear_codex_provider_keys(&cleared).expect("again"), cleared);
+    }
+
+    #[test]
+    fn claude_provider_env_keys_cover_injected_auth_and_endpoint() {
+        // 回归保护：这些键是"取消使用"必须清掉的部分，
+        // 少一个就会导致重启后仍然连到上一个供应商
+        for key in [
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_BASE_URL",
+        ] {
+            assert!(
+                CLAUDE_PROVIDER_ENV_KEYS.contains(&key),
+                "{key} must be cleared on deactivate"
+            );
+        }
+    }
 
     #[test]
     fn kimi_for_coding_effective_settings_backfill_256k_context() {
