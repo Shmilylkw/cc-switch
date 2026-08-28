@@ -21,6 +21,7 @@ export type {
 } from "./desktopRestart";
 export * as configApi from "./config";
 export * as authApi from "./auth";
+export { geminiOAuthApi } from "./auth";
 export * as copilotApi from "./copilot";
 export type { ProviderSwitchEvent } from "./providers";
 export type { Prompt } from "./prompts";
@@ -35,4 +36,5 @@ export type {
   ManagedAuthAccount,
   ManagedAuthStatus,
   ManagedAuthDeviceCodeResponse,
+  GeminiOAuthStatus,
 } from "./auth";

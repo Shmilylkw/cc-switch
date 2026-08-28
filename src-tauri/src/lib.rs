@@ -1677,6 +1677,10 @@ pub fn run() {
             commands::auth_remove_account,
             commands::auth_set_default_account,
             commands::auth_logout,
+            // Google Official (Gemini) OAuth commands
+            commands::gemini_auth_status,
+            commands::gemini_auth_login,
+            commands::gemini_auth_logout,
             // Copilot OAuth commands (multi-account support)
             commands::copilot_start_device_flow,
             commands::copilot_poll_for_auth,

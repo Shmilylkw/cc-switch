@@ -356,7 +356,8 @@
       "beta": "Beta",
       "copilotDescription": "Manage GitHub Copilot accounts",
       "codexOauthDescription": "Manage ChatGPT accounts",
-      "xaiOauthDescription": "Manage xAI / Grok accounts"
+      "xaiOauthDescription": "Manage xAI / Grok accounts",
+      "geminiOauthDescription": "Manage Google / Gemini accounts"
     },
     "advanced": {
       "configDir": {
@@ -1484,6 +1485,20 @@
     "retry": "Retry",
     "logoutAll": "Remove all xAI accounts",
     "loginRequired": "Sign in to an xAI account first"
+  },
+  "geminiOauth": {
+    "authStatus": "Google OAuth authentication",
+    "authenticated": "Signed in",
+    "notAuthenticated": "Not signed in",
+    "statusLoading": "Loading...",
+    "statusLoadFailed": "Unable to load Google sign-in status. Please retry.",
+    "login": "Sign in with Google",
+    "relogin": "Sign in again / switch account",
+    "loginLaunched": "Terminal opened — complete Google sign-in in the browser",
+    "loginFailed": "Failed to launch sign-in. Please make sure Gemini CLI is installed",
+    "logout": "Sign out of Google",
+    "loggedOut": "Signed out of Google",
+    "logoutFailed": "Failed to sign out"
   },
   "managedAuth": {
     "accountRemoved": "Account removed",

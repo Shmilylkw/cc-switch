@@ -356,7 +356,8 @@
       "beta": "Beta",
       "copilotDescription": "GitHub Copilot アカウントを管理します",
       "codexOauthDescription": "ChatGPT アカウントを管理します",
-      "xaiOauthDescription": "xAI / Grok アカウントを管理します"
+      "xaiOauthDescription": "xAI / Grok アカウントを管理します",
+      "geminiOauthDescription": "Google / Gemini アカウントを管理します"
     },
     "advanced": {
       "configDir": {
@@ -1484,6 +1485,20 @@
     "retry": "再試行",
     "logoutAll": "すべての xAI アカウントを削除",
     "loginRequired": "先に xAI アカウントへログインしてください"
+  },
+  "geminiOauth": {
+    "authStatus": "Google OAuth 認証",
+    "authenticated": "ログイン済み",
+    "notAuthenticated": "未ログイン",
+    "statusLoading": "読み込み中...",
+    "statusLoadFailed": "Google のログイン状態を読み込めませんでした。再試行してください。",
+    "login": "Google でログイン",
+    "relogin": "再ログイン / アカウント切り替え",
+    "loginLaunched": "ターミナルを開きました。ブラウザで Google ログインを完了してください",
+    "loginFailed": "ログインを開始できませんでした。Gemini CLI がインストールされているか確認してください",
+    "logout": "Google からログアウト",
+    "loggedOut": "Google からログアウトしました",
+    "logoutFailed": "ログアウトに失敗しました"
   },
   "managedAuth": {
     "accountRemoved": "アカウントを削除しました",

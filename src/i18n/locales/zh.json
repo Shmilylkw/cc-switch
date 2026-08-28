@@ -356,7 +356,8 @@
       "beta": "Beta",
       "copilotDescription": "管理 GitHub Copilot 账号",
       "codexOauthDescription": "管理 ChatGPT 账号",
-      "xaiOauthDescription": "管理 xAI / Grok 账号"
+      "xaiOauthDescription": "管理 xAI / Grok 账号",
+      "geminiOauthDescription": "管理 Google / Gemini 账号"
     },
     "advanced": {
       "configDir": {
@@ -1484,6 +1485,20 @@
     "retry": "重试",
     "logoutAll": "移除所有 xAI 账号",
     "loginRequired": "请先登录 xAI 账号"
+  },
+  "geminiOauth": {
+    "authStatus": "Google OAuth 认证",
+    "authenticated": "已登录",
+    "notAuthenticated": "未登录",
+    "statusLoading": "正在加载...",
+    "statusLoadFailed": "无法加载 Google 登录状态，请重试。",
+    "login": "使用 Google 登录",
+    "relogin": "重新登录 / 切换账号",
+    "loginLaunched": "已打开终端，请在浏览器中完成 Google 登录",
+    "loginFailed": "启动登录失败，请确认已安装 Gemini CLI",
+    "logout": "退出 Google 登录",
+    "loggedOut": "已退出 Google 登录",
+    "logoutFailed": "退出登录失败"
   },
   "managedAuth": {
     "accountRemoved": "账号已移除",
