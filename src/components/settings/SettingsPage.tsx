@@ -544,6 +544,12 @@ export function SettingsPage({
                   onRefreshIntervalChange={(usageDashboardRefreshIntervalMs) =>
                     handleAutoSave({ usageDashboardRefreshIntervalMs })
                   }
+                  sessionAutoSyncEnabled={
+                    settings?.sessionAutoSyncEnabled ?? true
+                  }
+                  onSessionAutoSyncEnabledChange={(sessionAutoSyncEnabled) =>
+                    handleAutoSave({ sessionAutoSyncEnabled })
+                  }
                 />
               </TabsContent>
             </div>
