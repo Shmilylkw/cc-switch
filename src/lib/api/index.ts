@@ -14,8 +14,14 @@ export { proxyApi } from "./proxy";
 export { openclawApi } from "./openclaw";
 export { sessionsApi } from "./sessions";
 export { workspaceApi } from "./workspace";
+export { desktopRestartApi } from "./desktopRestart";
+export type {
+  DesktopAppTarget,
+  RestartDesktopAppResult,
+} from "./desktopRestart";
 export * as configApi from "./config";
 export * as authApi from "./auth";
+export { geminiOAuthApi } from "./auth";
 export * as copilotApi from "./copilot";
 export type { ProviderSwitchEvent } from "./providers";
 export type { Prompt } from "./prompts";
@@ -30,4 +36,5 @@ export type {
   ManagedAuthAccount,
   ManagedAuthStatus,
   ManagedAuthDeviceCodeResponse,
+  GeminiOAuthStatus,
 } from "./auth";

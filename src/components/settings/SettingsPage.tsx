@@ -16,6 +16,7 @@ import {
   ScrollText,
   HardDriveDownload,
   FlaskConical,
+  MessagesSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -50,6 +51,7 @@ import { ProxyTabContent } from "@/components/settings/ProxyTabContent";
 import { ConnectivityCheckConfigPanel } from "@/components/usage/ConnectivityCheckConfigPanel";
 import { UsageDashboard } from "@/components/usage/UsageDashboard";
 import { LogConfigPanel } from "@/components/settings/LogConfigPanel";
+import { CodexConversationsPanel } from "@/components/settings/CodexConversationsPanel";
 import { AuthCenterPanel } from "@/components/settings/AuthCenterPanel";
 import { CodexAuthSettings } from "@/components/settings/CodexAuthSettings";
 import { useInstalledSkills } from "@/hooks/useSkills";
@@ -499,6 +501,32 @@ export function SettingsPage({
                         </AccordionTrigger>
                         <AccordionContent className="px-6 pb-6 pt-4 border-t border-border/50">
                           <LogConfigPanel />
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem
+                        value="codexConversations"
+                        className="rounded-xl glass-card overflow-hidden"
+                      >
+                        <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 data-[state=open]:bg-muted/50">
+                          <div className="flex items-center gap-3">
+                            <MessagesSquare className="h-5 w-5 text-green-500" />
+                            <div className="text-left">
+                              <h3 className="text-base font-semibold">
+                                {t(
+                                  "settings.advanced.codexConversations.title",
+                                )}
+                              </h3>
+                              <p className="text-sm text-muted-foreground font-normal">
+                                {t(
+                                  "settings.advanced.codexConversations.description",
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-6 pb-6 pt-4 border-t border-border/50">
+                          <CodexConversationsPanel />
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>

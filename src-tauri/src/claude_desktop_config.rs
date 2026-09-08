@@ -130,6 +130,16 @@ pub fn apply_provider(db: &Database, provider: &Provider) -> Result<(), AppError
     apply_provider_to_paths(db, provider, &paths)
 }
 
+/// 恢复官方（1p）状态：删除 CC Switch 写入的 profile 并清掉 appliedId。
+/// 取消使用时调用 —— 与切到官方条目走的是同一条路径。
+pub fn restore_official(_db: &Database) -> Result<(), AppError> {
+    if !is_supported_platform() {
+        return Ok(());
+    }
+    let paths = current_platform_paths()?;
+    restore_official_at_paths(&paths)
+}
+
 pub fn get_status(db: &Database, proxy_running: bool) -> Result<ClaudeDesktopStatus, AppError> {
     if !is_supported_platform() {
         return Ok(ClaudeDesktopStatus {

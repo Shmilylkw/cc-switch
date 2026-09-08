@@ -178,7 +178,10 @@
         "apiKeyPlaceholder": "Gemini API Key を入力"
       }
     },
-    "duplicateLiveIdsLoadFailed": "設定内のプロバイダー識別子を読み込めませんでした。設定を修正してから再度お試しください"
+    "duplicateLiveIdsLoadFailed": "設定内のプロバイダー識別子を読み込めませんでした。設定を修正してから再度お試しください",
+    "deactivate": "使用を解除",
+    "deactivated": "使用を解除しました",
+    "deactivatedHint": "書き込まれた設定を削除しました。再起動後に反映されます。いつでも再度有効化できます"
   },
   "claudeCode": {
     "needsRouting": "ルーティングが必要",
@@ -293,7 +296,9 @@
     "windowControlFailed": "ウィンドウ操作に失敗しました: {{error}}",
     "officialBlockedByProxy": "ローカルルーティングモード中は公式プロバイダーに切り替えできません。ルーティング経由で公式 API にアクセスするとアカウントが停止される可能性があります。",
     "proxyOfficialWarning": "現在のプロバイダー {{name}} は公式です。ローカルルーティングを使用する前にサードパーティプロバイダーに切り替えてください。",
-    "proxyReasonClaudeDesktop": "Claude Desktop ローカルルーティングモードを使用中"
+    "proxyReasonClaudeDesktop": "Claude Desktop ローカルルーティングモードを使用中",
+    "deactivateFailedTitle": "使用解除に失敗しました",
+    "deactivateFailed": "使用解除に失敗しました：{{error}}"
   },
   "confirm": {
     "deleteProvider": "プロバイダーを削除",
@@ -352,7 +357,8 @@
       "beta": "Beta",
       "copilotDescription": "GitHub Copilot アカウントを管理します",
       "codexOauthDescription": "ChatGPT アカウントを管理します",
-      "xaiOauthDescription": "xAI / Grok アカウントを管理します"
+      "xaiOauthDescription": "xAI / Grok アカウントを管理します",
+      "geminiOauthDescription": "Google / Gemini アカウントを管理します"
     },
     "advanced": {
       "configDir": {
@@ -421,6 +427,32 @@
         "thinkingOptimizerDescription": "Opus/Sonnet に Adaptive Thinking を自動的に有効化し、レガシーモデルに Extended Thinking を注入",
         "cacheInjection": "Cache 注入",
         "cacheInjectionDescription": "リクエストの重要な位置に標準の 5 分間 Cache ブレークポイントを自動注入し、重複トークンの課金を削減"
+      },
+      "codexConversations": {
+        "title": "ChatGPT / Codex の会話",
+        "description": "ローカルの Codex 会話の表示・削除、使用量データベースの再構築",
+        "listTitle": "ローカルの会話",
+        "refresh": "更新",
+        "empty": "ローカルの Codex 会話が見つかりません",
+        "selectAll": "すべて選択",
+        "selectedCount": "{{count}} 件選択中",
+        "delete": "選択項目を削除",
+        "deleting": "削除中…",
+        "deleteConfirmTitle": "会話を削除",
+        "deleteConfirmMessage": "選択した {{count}} 件のローカル会話記録を完全に削除します。\n\nこの操作は取り消せません。",
+        "deleteConfirmAction": "削除",
+        "deleteSuccess": "{{count}} 件の会話を削除しました",
+        "deleteFailed": "{{failed}} 件の会話の削除に失敗しました",
+        "deleteRequestFailed": "削除に失敗しました。しばらくしてから再試行してください",
+        "rebuildTitle": "使用量データベース",
+        "rebuildDescription": "会話ファイルを削除しても、データベースに取り込み済みの使用量記録は削除されません。再構築すると残りのローカルファイルから再同期します。",
+        "rebuild": "データベースを再構築",
+        "rebuilding": "再構築中…",
+        "rebuildConfirmTitle": "使用量データベースを再構築",
+        "rebuildConfirmMessage": "Codex の使用量データをバックアップしてリセットし、すべてのローカル会話ファイルを再スキャンします。時間がかかる場合があります。",
+        "rebuildConfirmAction": "再構築",
+        "rebuildSuccess": "再構築完了：{{imported}} 件取り込み、エラー {{errors}} 件",
+        "rebuildFailed": "再構築に失敗しました：{{error}}"
       },
       "logConfig": {
         "title": "アプリ診断ログ",
@@ -1458,6 +1490,20 @@
     "retry": "再試行",
     "logoutAll": "すべての xAI アカウントを削除",
     "loginRequired": "先に xAI アカウントへログインしてください"
+  },
+  "geminiOauth": {
+    "authStatus": "Google OAuth 認証",
+    "authenticated": "ログイン済み",
+    "notAuthenticated": "未ログイン",
+    "statusLoading": "読み込み中...",
+    "statusLoadFailed": "Google のログイン状態を読み込めませんでした。再試行してください。",
+    "login": "Google でログイン",
+    "relogin": "再ログイン / アカウント切り替え",
+    "loginLaunched": "ターミナルを開きました。ブラウザで Google ログインを完了してください",
+    "loginFailed": "ログインを開始できませんでした。Gemini CLI がインストールされているか確認してください",
+    "logout": "Google からログアウト",
+    "loggedOut": "Google からログアウトしました",
+    "logoutFailed": "ログアウトに失敗しました"
   },
   "managedAuth": {
     "accountRemoved": "アカウントを削除しました",
@@ -3261,5 +3307,13 @@
     "expiredHint": "{{tool}}コマンドを実行してログインを更新してください",
     "queryFailed": "クエリに失敗しました",
     "refresh": "更新"
+  },
+  "restart": {
+    "claudeDesktop": "Claude デスクトップ版",
+    "codexDesktop": "Codex デスクトップ版",
+    "tooltip": "{{app}} を再起動して設定を反映",
+    "done": "{{app}} を再起動しました",
+    "started": "{{app}} は未起動だったため起動しました",
+    "failed": "{{app}} の再起動に失敗しました：{{error}}"
   }
 }

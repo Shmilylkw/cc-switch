@@ -117,6 +117,30 @@ export async function authLogout(
   });
 }
 
+export interface GeminiOAuthStatus {
+  authenticated: boolean;
+  email: string | null;
+  message: string | null;
+}
+
+export async function geminiAuthStatus(): Promise<GeminiOAuthStatus> {
+  return invoke<GeminiOAuthStatus>("gemini_auth_status");
+}
+
+export async function geminiAuthLogin(): Promise<void> {
+  return invoke("gemini_auth_login");
+}
+
+export async function geminiAuthLogout(): Promise<void> {
+  return invoke("gemini_auth_logout");
+}
+
+export const geminiOAuthApi = {
+  geminiAuthStatus,
+  geminiAuthLogin,
+  geminiAuthLogout,
+};
+
 export const authApi = {
   authStartLogin,
   authPollForAccount,

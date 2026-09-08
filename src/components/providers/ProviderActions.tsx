@@ -9,6 +9,7 @@ import {
   Minus,
   Play,
   Plus,
+  PowerOff,
   Terminal,
   Trash2,
   Zap,
@@ -45,6 +46,9 @@ interface ProviderActionsProps {
   onConfigureUsage?: () => void;
   onDelete: () => void;
   onRemoveFromConfig?: () => void;
+  /** 取消使用当前供应商（独占模式应用）。未提供则不显示该按钮 */
+  onDeactivate?: () => void;
+  isDeactivating?: boolean;
   onDisableOmo?: () => void;
   onOpenTerminal?: () => void;
   isAutoFailoverEnabled?: boolean;
@@ -87,6 +91,8 @@ export function ProviderActions({
   onConfigureUsage,
   onDelete,
   onRemoveFromConfig,
+  onDeactivate,
+  isDeactivating = false,
   onDisableOmo,
   onOpenTerminal,
   isAutoFailoverEnabled = false,
@@ -385,6 +391,29 @@ export function ProviderActions({
       </span>
 
       <div className="flex items-center gap-1">
+        {/* 取消使用：仅独占模式的当前供应商可见。会先把 live 改动回填进
+            供应商记录，再清掉写入的鉴权/端点配置，让应用回到未配置状态；
+            随时可以再点启用回到原状态 */}
+        {isCurrent && onDeactivate && !isOmo && !isAdditiveMode && (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={isDeactivating ? undefined : onDeactivate}
+            disabled={isDeactivating}
+            title={t("provider.deactivate", { defaultValue: "取消使用" })}
+            className={cn(
+              iconButtonClass,
+              "hover:text-amber-600 dark:hover:text-amber-400",
+            )}
+          >
+            {isDeactivating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <PowerOff className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+
         <Button
           size="icon"
           variant="ghost"

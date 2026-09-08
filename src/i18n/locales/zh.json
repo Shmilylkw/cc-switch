@@ -178,7 +178,10 @@
         "apiKeyPlaceholder": "请输入 Gemini API Key"
       }
     },
-    "duplicateLiveIdsLoadFailed": "读取配置中的供应商标识失败，请先修复配置后再试"
+    "duplicateLiveIdsLoadFailed": "读取配置中的供应商标识失败，请先修复配置后再试",
+    "deactivate": "取消使用",
+    "deactivated": "已取消使用",
+    "deactivatedHint": "已清除写入的配置，重启后生效；可随时重新启用"
   },
   "claudeCode": {
     "needsRouting": "需要路由",
@@ -293,7 +296,9 @@
     "windowControlFailed": "窗口控制失败：{{error}}",
     "officialBlockedByProxy": "本地路由模式下不能切换到官方供应商，使用路由访问官方 API 可能导致账号被封禁",
     "proxyOfficialWarning": "当前供应商 {{name}} 是官方供应商，建议切换到第三方供应商后再使用本地路由",
-    "proxyReasonClaudeDesktop": "使用 Claude Desktop 本地路由模式"
+    "proxyReasonClaudeDesktop": "使用 Claude Desktop 本地路由模式",
+    "deactivateFailedTitle": "取消使用失败",
+    "deactivateFailed": "取消使用失败：{{error}}"
   },
   "confirm": {
     "deleteProvider": "删除供应商",
@@ -352,7 +357,8 @@
       "beta": "Beta",
       "copilotDescription": "管理 GitHub Copilot 账号",
       "codexOauthDescription": "管理 ChatGPT 账号",
-      "xaiOauthDescription": "管理 xAI / Grok 账号"
+      "xaiOauthDescription": "管理 xAI / Grok 账号",
+      "geminiOauthDescription": "管理 Google / Gemini 账号"
     },
     "advanced": {
       "configDir": {
@@ -421,6 +427,32 @@
         "thinkingOptimizerDescription": "自动为 Opus/Sonnet 启用 Adaptive Thinking，为旧模型注入 Extended Thinking",
         "cacheInjection": "Cache 注入",
         "cacheInjectionDescription": "自动在请求关键位置注入标准 5 分钟 Cache 断点，减少重复 token 计费"
+      },
+      "codexConversations": {
+        "title": "ChatGPT / Codex 对话",
+        "description": "查看、删除本地 Codex 对话，并刷新用量数据库",
+        "listTitle": "本地对话",
+        "refresh": "刷新",
+        "empty": "未找到本地 Codex 对话",
+        "selectAll": "全选",
+        "selectedCount": "已选 {{count}} 项",
+        "delete": "删除所选",
+        "deleting": "删除中…",
+        "deleteConfirmTitle": "删除对话",
+        "deleteConfirmMessage": "将永久删除已选中的 {{count}} 条本地对话记录。\n\n此操作不可恢复。",
+        "deleteConfirmAction": "删除",
+        "deleteSuccess": "已删除 {{count}} 条对话",
+        "deleteFailed": "{{failed}} 条对话删除失败",
+        "deleteRequestFailed": "删除失败，请稍后重试",
+        "rebuildTitle": "用量数据库",
+        "rebuildDescription": "删除对话文件不会移除数据库中已导入的用量记录。刷新可从剩余的本地文件重新同步。",
+        "rebuild": "刷新数据库",
+        "rebuilding": "刷新中…",
+        "rebuildConfirmTitle": "刷新用量数据库",
+        "rebuildConfirmMessage": "将备份并重置 Codex 用量数据，然后重新扫描所有本地对话文件。可能需要一些时间。",
+        "rebuildConfirmAction": "刷新",
+        "rebuildSuccess": "刷新完成：已导入 {{imported}} 条，错误 {{errors}} 条",
+        "rebuildFailed": "刷新失败：{{error}}"
       },
       "logConfig": {
         "title": "应用诊断日志",
@@ -1458,6 +1490,20 @@
     "retry": "重试",
     "logoutAll": "移除所有 xAI 账号",
     "loginRequired": "请先登录 xAI 账号"
+  },
+  "geminiOauth": {
+    "authStatus": "Google OAuth 认证",
+    "authenticated": "已登录",
+    "notAuthenticated": "未登录",
+    "statusLoading": "正在加载...",
+    "statusLoadFailed": "无法加载 Google 登录状态，请重试。",
+    "login": "使用 Google 登录",
+    "relogin": "重新登录 / 切换账号",
+    "loginLaunched": "已打开终端，请在浏览器中完成 Google 登录",
+    "loginFailed": "启动登录失败，请确认已安装 Gemini CLI",
+    "logout": "退出 Google 登录",
+    "loggedOut": "已退出 Google 登录",
+    "logoutFailed": "退出登录失败"
   },
   "managedAuth": {
     "accountRemoved": "账号已移除",
@@ -3261,5 +3307,13 @@
     "expiredHint": "请运行 {{tool}} 命令刷新登录",
     "queryFailed": "查询失败",
     "refresh": "刷新"
+  },
+  "restart": {
+    "claudeDesktop": "Claude 桌面版",
+    "codexDesktop": "Codex 桌面版",
+    "tooltip": "重启 {{app}}（使配置生效）",
+    "done": "{{app}} 已重启",
+    "started": "{{app}} 未在运行，已启动",
+    "failed": "重启 {{app}} 失败：{{error}}"
   }
 }

@@ -91,6 +91,15 @@ export const providersApi = {
     return await invoke("switch_provider", { id, app: appId });
   },
 
+  /**
+   * Deactivate the current provider (exclusive-mode apps).
+   * Backfills live changes into the provider, then clears the current marker.
+   * Live config files are left untouched, so the CLI / desktop app keeps working.
+   */
+  async deactivate(appId: AppId): Promise<SwitchResult> {
+    return await invoke("deactivate_provider", { app: appId });
+  },
+
   async importDefault(appId: AppId): Promise<boolean> {
     return await invoke("import_default_config", { app: appId });
   },

@@ -5,13 +5,17 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::time::Duration;
 
+use chrono::Local;
 use regex::Regex;
+use rusqlite::backup::Backup;
 use rusqlite::Connection;
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::codex_config::{get_codex_config_dir, read_codex_config_text};
 use crate::codex_state_db::codex_state_db_paths;
+use crate::config::{atomic_write, copy_file, get_app_config_dir};
+use crate::database::Database;
 use crate::session_manager::{SessionMessage, SessionMeta};
 
 use super::utils::{
@@ -279,6 +283,16 @@ pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<boo
         ));
     }
 
+    // A Codex conversation is registered in more than just the rollout .jsonl:
+    // `session_index.jsonl`, the codex-core `state_5.sqlite` `threads` table, and
+    // the ChatGPT desktop app's own `sqlite/*.db` (which drives its sidebar list).
+    // Removing only the .jsonl leaves the thread visible everywhere else and makes
+    // it error on click ("file does not exist"), so purge the indexes too. This is
+    // best-effort: failures are logged, and the file is still removed afterwards.
+    if let Some(config_dir) = codex_config_dir_for_session(path) {
+        purge_thread_from_indexes(&config_dir, session_id);
+    }
+
     std::fs::remove_file(path).map_err(|e| {
         format!(
             "Failed to delete Codex session file {}: {e}",
@@ -287,6 +301,241 @@ pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<boo
     })?;
 
     Ok(true)
+}
+
+/// Walk up from a rollout file to the Codex config dir (the parent of the
+/// `sessions` / `archived_sessions` root). Returns `None` when the file is not
+/// under a recognized Codex layout, which keeps unit tests hermetic — they never
+/// touch a real `~/.codex`.
+fn codex_config_dir_for_session(path: &Path) -> Option<PathBuf> {
+    let mut current = path.parent();
+    while let Some(dir) = current {
+        if let Some(name) = dir.file_name().and_then(|n| n.to_str()) {
+            if name == "sessions" || name == "archived_sessions" {
+                return dir.parent().map(Path::to_path_buf);
+            }
+        }
+        current = dir.parent();
+    }
+    None
+}
+
+/// Remove every trace of `session_id` from the Codex title/sidebar indexes:
+/// `session_index.jsonl`, the codex-core state DB(s), and the desktop app's own
+/// `sqlite/*.db`. Each store is backed up before mutation and guarded so a
+/// missing store or schema drift is skipped rather than fatal.
+fn purge_thread_from_indexes(config_dir: &Path, session_id: &str) {
+    let backup_root = get_app_config_dir()
+        .join("backups")
+        .join("codex-session-delete")
+        .join(Local::now().format("%Y%m%d_%H%M%S").to_string());
+
+    // 1) session_index.jsonl — CC Switch's own title lookup.
+    let index_path = config_dir.join(CODEX_SESSION_INDEX_FILENAME);
+    if let Err(err) = prune_session_index(&index_path, session_id, &backup_root) {
+        log::warn!(
+            "Failed to prune Codex session index for {session_id} in {}: {err}",
+            index_path.display()
+        );
+    }
+
+    // 2) state_5.sqlite (+ optional sqlite_home override) — codex-core canonical store.
+    let config_text = read_codex_config_text().unwrap_or_default();
+    for db_path in codex_state_db_paths(config_dir, &config_text) {
+        if let Err(err) = purge_thread_from_db(&db_path, session_id, &backup_root, STATE_DB_THREAD_TABLES)
+        {
+            log::warn!(
+                "Failed to purge Codex thread {session_id} from state DB {}: {err}",
+                db_path.display()
+            );
+        }
+    }
+
+    // 3) sqlite/*.db — the ChatGPT desktop app's private DBs that feed its sidebar.
+    for db_path in app_db_paths(config_dir) {
+        if let Err(err) = purge_thread_from_db(&db_path, session_id, &backup_root, APP_DB_THREAD_TABLES)
+        {
+            log::warn!(
+                "Failed to purge Codex thread {session_id} from app DB {}: {err}",
+                db_path.display()
+            );
+        }
+    }
+}
+
+/// `(table, id_column)` pairs in `state_5.sqlite` that reference a thread.
+const STATE_DB_THREAD_TABLES: &[(&str, &str)] = &[
+    ("threads", "id"),
+    ("thread_dynamic_tools", "thread_id"),
+    ("thread_spawn_edges", "parent_thread_id"),
+    ("thread_spawn_edges", "child_thread_id"),
+    ("thread_sections", "id"),
+];
+
+/// `(table, id_column)` pairs in the desktop app's `sqlite/*.db` files.
+const APP_DB_THREAD_TABLES: &[(&str, &str)] = &[
+    ("local_thread_catalog", "thread_id"),
+    ("thread_timeline_ledger", "thread_id"),
+    ("inbox_items", "thread_id"),
+    ("automation_runs", "thread_id"),
+    ("thread_turn_summaries", "thread_id"),
+    ("app_server_history_snapshots", "thread_id"),
+];
+
+/// Enumerate `config_dir/sqlite/*.db` (the ChatGPT desktop app's own databases).
+/// Filenames carry a channel suffix (`codex-dev.db` vs `codex.db`), so glob the
+/// directory rather than hard-coding names.
+fn app_db_paths(config_dir: &Path) -> Vec<PathBuf> {
+    let sqlite_dir = config_dir.join("sqlite");
+    let Ok(entries) = std::fs::read_dir(&sqlite_dir) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            let is_db = path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("db"));
+            if is_db {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Rewrite `session_index.jsonl`, dropping every line whose `id` matches
+/// `session_id`. Backs up the original first, then writes atomically. No-op when
+/// the index is absent or unchanged.
+fn prune_session_index(
+    index_path: &Path,
+    session_id: &str,
+    backup_root: &Path,
+) -> Result<(), String> {
+    if !index_path.exists() {
+        return Ok(());
+    }
+
+    let content = std::fs::read_to_string(index_path)
+        .map_err(|e| format!("read session index failed: {e}"))?;
+
+    let mut kept = String::with_capacity(content.len());
+    let mut changed = false;
+    for segment in content.split_inclusive('\n') {
+        let (line, newline) = segment
+            .strip_suffix('\n')
+            .map(|line| (line, "\n"))
+            .unwrap_or((segment, ""));
+        let is_match = serde_json::from_str::<Value>(line.trim())
+            .ok()
+            .and_then(|v| {
+                v.get("id")
+                    .and_then(Value::as_str)
+                    .map(|id| id.trim() == session_id)
+            })
+            .unwrap_or(false);
+        if is_match {
+            changed = true;
+            continue;
+        }
+        kept.push_str(line);
+        kept.push_str(newline);
+    }
+
+    if !changed {
+        return Ok(());
+    }
+
+    let backup_path = backup_root.join("jsonl").join(CODEX_SESSION_INDEX_FILENAME);
+    if let Some(parent) = backup_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("create session index backup dir failed: {e}"))?;
+    }
+    copy_file(index_path, &backup_path)
+        .map_err(|e| format!("backup session index failed: {e}"))?;
+    atomic_write(index_path, kept.as_bytes())
+        .map_err(|e| format!("write session index failed: {e}"))?;
+    Ok(())
+}
+
+/// Delete rows referencing `session_id` from the given `(table, column)` pairs
+/// in a SQLite DB. Only tables/columns that actually exist are touched; the DB
+/// is backed up (via SQLite's online backup API) before any delete, and all
+/// deletes run in one transaction. A busy timeout lets the delete proceed even
+/// while Codex/ChatGPT holds the WAL-mode DB open.
+fn purge_thread_from_db(
+    db_path: &Path,
+    session_id: &str,
+    backup_root: &Path,
+    tables: &[(&str, &str)],
+) -> Result<(), String> {
+    if !db_path.exists() {
+        return Ok(());
+    }
+
+    let mut conn =
+        Connection::open(db_path).map_err(|e| format!("open DB {}: {e}", db_path.display()))?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .map_err(|e| format!("set busy_timeout: {e}"))?;
+
+    // Collect the (table, column) targets that exist and hold at least one match.
+    let mut targets = Vec::new();
+    for (table, column) in tables {
+        if !Database::table_exists(&conn, table).unwrap_or(false)
+            || !Database::has_column(&conn, table, column).unwrap_or(false)
+        {
+            continue;
+        }
+        let count_sql = format!("SELECT COUNT(*) FROM \"{table}\" WHERE \"{column}\" = ?");
+        let matches: i64 = conn
+            .query_row(&count_sql, [session_id], |row| row.get(0))
+            .unwrap_or(0);
+        if matches > 0 {
+            targets.push((*table, *column));
+        }
+    }
+
+    if targets.is_empty() {
+        return Ok(());
+    }
+
+    backup_db(db_path, &conn, backup_root)?;
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("begin transaction: {e}"))?;
+    for (table, column) in &targets {
+        let delete_sql = format!("DELETE FROM \"{table}\" WHERE \"{column}\" = ?");
+        tx.execute(&delete_sql, [session_id])
+            .map_err(|e| format!("delete from {table}.{column}: {e}"))?;
+    }
+    tx.commit().map_err(|e| format!("commit: {e}"))?;
+    Ok(())
+}
+
+/// Back up a SQLite DB into `backup_root/state/<filename>` using the online
+/// backup API (safe while the source is open by another process).
+fn backup_db(db_path: &Path, source_conn: &Connection, backup_root: &Path) -> Result<(), String> {
+    let file_name = db_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "state.sqlite".to_string());
+    let backup_path = backup_root.join("state").join(&file_name);
+    if let Some(parent) = backup_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("create backup dir: {e}"))?;
+    }
+
+    let mut backup_conn =
+        Connection::open(&backup_path).map_err(|e| format!("create DB backup: {e}"))?;
+    let backup = Backup::new(source_conn, &mut backup_conn)
+        .map_err(|e| format!("init DB backup: {e}"))?;
+    backup
+        .run_to_completion(5, Duration::from_millis(25), None)
+        .map_err(|e| format!("write DB backup: {e}"))?;
+    Ok(())
 }
 
 fn parse_session(path: &Path) -> Option<SessionMeta> {
@@ -582,6 +831,91 @@ mod tests {
             .expect("delete session");
 
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn codex_config_dir_for_session_walks_up_to_config_dir() {
+        let config = Path::new("/home/u/.codex");
+        let active = config.join("sessions/2026/08/13/rollout-x-abc.jsonl");
+        let archived = config.join("archived_sessions/2026/08/rollout-y-def.jsonl");
+        assert_eq!(codex_config_dir_for_session(&active).as_deref(), Some(config));
+        assert_eq!(
+            codex_config_dir_for_session(&archived).as_deref(),
+            Some(config)
+        );
+        // A file outside a recognized layout yields None (keeps tests hermetic).
+        assert_eq!(codex_config_dir_for_session(Path::new("/tmp/x.jsonl")), None);
+    }
+
+    #[test]
+    fn prune_session_index_removes_only_matching_id_and_backs_up() {
+        let temp = tempdir().expect("tempdir");
+        let index = temp.path().join(CODEX_SESSION_INDEX_FILENAME);
+        std::fs::write(
+            &index,
+            "{\"id\":\"keep-1\",\"thread_name\":\"a\"}\n\
+             {\"id\":\"drop-me\",\"thread_name\":\"b\"}\n\
+             {\"id\":\"keep-2\",\"thread_name\":\"c\"}\n",
+        )
+        .expect("write index");
+        let backup_root = temp.path().join("backup");
+
+        prune_session_index(&index, "drop-me", &backup_root).expect("prune");
+
+        let after = std::fs::read_to_string(&index).expect("read index");
+        assert!(after.contains("keep-1"));
+        assert!(after.contains("keep-2"));
+        assert!(!after.contains("drop-me"));
+        // Backup captured the pre-prune content.
+        let backup = std::fs::read_to_string(
+            backup_root.join("jsonl").join(CODEX_SESSION_INDEX_FILENAME),
+        )
+        .expect("read backup");
+        assert!(backup.contains("drop-me"));
+    }
+
+    #[test]
+    fn purge_thread_from_db_deletes_matching_rows_and_skips_absent_tables() {
+        let temp = tempdir().expect("tempdir");
+        let db_path = temp.path().join(CODEX_STATE_DB_FILENAME);
+        {
+            let conn = Connection::open(&db_path).expect("open db");
+            conn.execute_batch(
+                "CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT);\
+                 CREATE TABLE thread_dynamic_tools (thread_id TEXT, name TEXT);\
+                 INSERT INTO threads (id, title) VALUES ('drop-me','x'), ('keep','y');\
+                 INSERT INTO thread_dynamic_tools (thread_id, name) VALUES ('drop-me','t');",
+            )
+            .expect("seed db");
+        }
+        let backup_root = temp.path().join("backup");
+
+        purge_thread_from_db(&db_path, "drop-me", &backup_root, STATE_DB_THREAD_TABLES)
+            .expect("purge");
+
+        let conn = Connection::open(&db_path).expect("reopen db");
+        let threads: i64 = conn
+            .query_row("SELECT COUNT(*) FROM threads WHERE id = 'drop-me'", [], |r| {
+                r.get(0)
+            })
+            .expect("count threads");
+        let tools: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM thread_dynamic_tools WHERE thread_id = 'drop-me'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("count tools");
+        let kept: i64 = conn
+            .query_row("SELECT COUNT(*) FROM threads WHERE id = 'keep'", [], |r| {
+                r.get(0)
+            })
+            .expect("count kept");
+        assert_eq!(threads, 0);
+        assert_eq!(tools, 0);
+        assert_eq!(kept, 1);
+        // Backup exists and is a valid DB snapshot taken before deletion.
+        assert!(backup_root.join("state").join(CODEX_STATE_DB_FILENAME).exists());
     }
 
     #[test]

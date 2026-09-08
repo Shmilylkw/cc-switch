@@ -178,7 +178,10 @@
         "apiKeyPlaceholder": "Enter Gemini API Key"
       }
     },
-    "duplicateLiveIdsLoadFailed": "Failed to read provider identifiers from config, please fix the config and try again"
+    "duplicateLiveIdsLoadFailed": "Failed to read provider identifiers from config, please fix the config and try again",
+    "deactivate": "Deactivate",
+    "deactivated": "Deactivated",
+    "deactivatedHint": "Written config cleared, effective after restart — you can enable it again anytime"
   },
   "claudeCode": {
     "needsRouting": "Needs Routing",
@@ -293,7 +296,9 @@
     "windowControlFailed": "Window control failed: {{error}}",
     "officialBlockedByProxy": "Cannot switch to official provider while local routing is active. Using routing with official APIs may cause account bans.",
     "proxyOfficialWarning": "Current provider {{name}} is official. Consider switching to a third-party provider before using local routing.",
-    "proxyReasonClaudeDesktop": "Using Claude Desktop local routing mode"
+    "proxyReasonClaudeDesktop": "Using Claude Desktop local routing mode",
+    "deactivateFailedTitle": "Deactivate failed",
+    "deactivateFailed": "Deactivate failed: {{error}}"
   },
   "confirm": {
     "deleteProvider": "Delete Provider",
@@ -352,7 +357,8 @@
       "beta": "Beta",
       "copilotDescription": "Manage GitHub Copilot accounts",
       "codexOauthDescription": "Manage ChatGPT accounts",
-      "xaiOauthDescription": "Manage xAI / Grok accounts"
+      "xaiOauthDescription": "Manage xAI / Grok accounts",
+      "geminiOauthDescription": "Manage Google / Gemini accounts"
     },
     "advanced": {
       "configDir": {
@@ -421,6 +427,32 @@
         "thinkingOptimizerDescription": "Automatically enable Adaptive Thinking for Opus/Sonnet, and inject Extended Thinking for legacy models",
         "cacheInjection": "Cache Injection",
         "cacheInjectionDescription": "Automatically inject standard 5-minute cache breakpoints at key positions to reduce duplicate token billing"
+      },
+      "codexConversations": {
+        "title": "ChatGPT / Codex Conversations",
+        "description": "List and delete local Codex conversations, and rebuild the usage database",
+        "listTitle": "Local Conversations",
+        "refresh": "Refresh",
+        "empty": "No local Codex conversations found",
+        "selectAll": "Select all",
+        "selectedCount": "{{count}} selected",
+        "delete": "Delete selected",
+        "deleting": "Deleting…",
+        "deleteConfirmTitle": "Delete conversations",
+        "deleteConfirmMessage": "This will permanently delete the selected {{count}} local conversation record(s).\n\nThis action cannot be undone.",
+        "deleteConfirmAction": "Delete",
+        "deleteSuccess": "Deleted {{count}} conversation(s)",
+        "deleteFailed": "{{failed}} conversation(s) failed to delete",
+        "deleteRequestFailed": "Delete failed, please try again later",
+        "rebuildTitle": "Usage Database",
+        "rebuildDescription": "Deleting conversation files does not remove usage records already imported into the database. Rebuild to resync from the remaining local files.",
+        "rebuild": "Rebuild database",
+        "rebuilding": "Rebuilding…",
+        "rebuildConfirmTitle": "Rebuild usage database",
+        "rebuildConfirmMessage": "This will back up and reset the Codex usage data, then rescan all local conversation files. It may take a while.",
+        "rebuildConfirmAction": "Rebuild",
+        "rebuildSuccess": "Rebuild complete: imported {{imported}}, errors {{errors}}",
+        "rebuildFailed": "Rebuild failed: {{error}}"
       },
       "logConfig": {
         "title": "Application Diagnostic Logs",
@@ -1458,6 +1490,20 @@
     "retry": "Retry",
     "logoutAll": "Remove all xAI accounts",
     "loginRequired": "Sign in to an xAI account first"
+  },
+  "geminiOauth": {
+    "authStatus": "Google OAuth authentication",
+    "authenticated": "Signed in",
+    "notAuthenticated": "Not signed in",
+    "statusLoading": "Loading...",
+    "statusLoadFailed": "Unable to load Google sign-in status. Please retry.",
+    "login": "Sign in with Google",
+    "relogin": "Sign in again / switch account",
+    "loginLaunched": "Terminal opened — complete Google sign-in in the browser",
+    "loginFailed": "Failed to launch sign-in. Please make sure Gemini CLI is installed",
+    "logout": "Sign out of Google",
+    "loggedOut": "Signed out of Google",
+    "logoutFailed": "Failed to sign out"
   },
   "managedAuth": {
     "accountRemoved": "Account removed",
@@ -3261,5 +3307,13 @@
     "expiredHint": "Run the {{tool}} command to refresh your login",
     "queryFailed": "Query failed",
     "refresh": "Refresh"
+  },
+  "restart": {
+    "claudeDesktop": "Claude Desktop",
+    "codexDesktop": "Codex Desktop",
+    "tooltip": "Restart {{app}} to apply the config",
+    "done": "{{app}} restarted",
+    "started": "{{app}} was not running — started it",
+    "failed": "Failed to restart {{app}}: {{error}}"
   }
 }

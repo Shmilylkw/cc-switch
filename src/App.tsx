@@ -31,7 +31,13 @@ import {
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
 import type { EnvConflict } from "@/types/env";
-import { proxyKeys, useProvidersQuery, useSettingsQuery } from "@/lib/query";
+import {
+  proxyKeys,
+  useDeactivateProviderMutation,
+  useProvidersQuery,
+  useSettingsQuery,
+} from "@/lib/query";
+import { DesktopRestartDock } from "@/components/DesktopRestartDock";
 import {
   piApi,
   providersApi,
@@ -363,6 +369,22 @@ function App() {
   };
 
   const disableOmoMutation = useDisableCurrentOmo();
+  const deactivateProviderMutation = useDeactivateProviderMutation(activeApp);
+  const handleDeactivateProvider = () => {
+    deactivateProviderMutation.mutate(undefined, {
+      onSuccess: () => {
+        toast.success(
+          t("provider.deactivated", { defaultValue: "已取消使用" }),
+          {
+            description: t("provider.deactivatedHint", {
+              defaultValue: "配置文件保持不变，可随时重新启用",
+            }),
+          },
+        );
+      },
+    });
+  };
+
   const handleDisableOmo = () => {
     disableOmoMutation.mutate(undefined, {
       onSuccess: () => {
@@ -1115,6 +1137,12 @@ function App() {
                           ? handleEnablePiProvider
                           : switchProvider
                       }
+                      onDeactivate={handleDeactivateProvider}
+                      deactivatingProviderId={
+                        deactivateProviderMutation.isPending
+                          ? currentProviderId
+                          : null
+                      }
                       onEdit={(provider) => {
                         setEditingProvider(provider);
                       }}
@@ -1820,6 +1848,8 @@ function App() {
         }}
         onCancel={() => setLaunchDashboardOpen(false)}
       />
+
+      <DesktopRestartDock />
 
       <DeepLinkImportDialog />
       <FirstRunNoticeDialog />
